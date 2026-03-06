@@ -1,74 +1,96 @@
 import json
 import asyncio
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiogram.enums import ParseMode
 
-TOKEN = "8638573679:AAGyt_lhb1mY59RRjGjYMo6gO5oKEMPoEME"
-ADMIN_ID = 8578660273  # sizning Telegram ID
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = 8578660273
 
-bot = Bot(token=TOKEN)
+bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 # baza yuklash
 try:
     with open("movies.json", "r", encoding="utf-8") as f:
         movies = json.load(f)
-except FileNotFoundError:
+except:
     movies = {}
 
 def save_movies():
     with open("movies.json", "w", encoding="utf-8") as f:
         json.dump(movies, f, indent=4, ensure_ascii=False)
 
-# /start
+# start
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("🎬 Kino botga xush kelibsiz!\nKino nomi yoki kodini yuboring.")
+    await message.answer(
+        "🎬 <b>Kino botga xush kelibsiz!</b>\n\n"
+        "Kino nomi yoki kodini yuboring."
+    )
 
-# barcha xabarlarni bir joyda qayta ishlash
+# qidirish
 @dp.message()
-async def handle_message(message: types.Message):
-    if message.text:  # matnli xabarlar
+async def search_movie(message: types.Message):
+
+    if message.text:
         text = message.text.lower()
 
-        # kodi orqali qidirish
+        # kod orqali
         if text in movies:
             movie = movies[text]
-            await message.answer_video(movie["file_id"], caption=f"{movie['name']}")
+
+            await message.answer_video(
+                video=movie["file_id"],
+                caption=f"🎬 <b>{movie['name']}</b>"
+            )
             return
 
-        # nom orqali qidirish
+        # nom orqali
         results = []
+
         for code, movie in movies.items():
             if text in movie["name"].lower():
                 results.append(f"{code} - {movie['name']}")
 
         if results:
-            await message.answer("🔎 Topildi:\n" + "\n".join(results[:10]))
+            await message.answer(
+                "🔎 <b>Topilgan kinolar:</b>\n\n" +
+                "\n".join(results[:10])
+            )
         else:
             await message.answer("❌ Kino topilmadi")
 
-    # admin video yuborsa avtomatik qo‘shish
+    # admin video yuborsa
     elif message.video and message.from_user.id == ADMIN_ID:
+
         file_id = message.video.file_id
         new_code = str(len(movies) + 1)
+
         name = message.caption if message.caption else f"Kino {new_code}"
 
         movies[new_code] = {
             "name": name,
             "file_id": file_id
         }
-        save_movies()
-        await message.answer(f"✅ Kino qo‘shildi!\n🎬 Kod: {new_code}")
 
-# botni ishga tushirish, tarmoq uzilishlariga chidamli
+        save_movies()
+
+        await message.answer(
+            f"✅ Kino qo‘shildi!\n\n"
+            f"🎬 Nomi: {name}\n"
+            f"🔢 Kod: {new_code}"
+        )
+
 async def main():
-    print("✅ Bot ishga tushdi...")
+    print("✅ Bot ishga tushdi")
+
     while True:
         try:
-            await dp.start_polling(bot, skip_updates=True, timeout=30)
+            await dp.start_polling(bot, skip_updates=True)
         except Exception as e:
-            print(f"❌ Xato yuz berdi: {e}. 5 soniyadan keyin qayta urinish...")
+            print(f"❌ Xato: {e}")
             await asyncio.sleep(5)
 
 if __name__ == "__main__":
